@@ -1,0 +1,284 @@
+#!/bin/bash
+#set -x
+########################################################################
+# SUN Grid Engine job wrapper
+# parallel job on opteron queue
+########################################################################
+#$ -N BFO
+#$ -pe mpi2 16
+#$ -q wp32m4
+#$ -j y
+#$ -M yjzhou@physics.rutgers.edu
+#$ -m e
+#$ -v LD_LIBRARY_PATH,OMP_NUM_THREADS
+########################################################################
+# do NOT remove the following line!
+source $TMPDIR/sge_init.sh
+########################################################################
+source ~/.bashrc
+cat << ! > KPOINTS
+a
+0
+M
+4 4 4
+0.0 0.0 0.0
+!
+
+
+c=1.98
+p0=0
+step=0.03
+c1=`awk 'BEGIN{ printf ("%0.4f", '$c'+'$step' )}'`
+const=$c1
+n=2
+calcu=0
+jobname=BFO_M00c.dat
+#define text1. parameters (c)
+function text1 {  
+        cp POSCAR0c_$const POSCAR
+        sed -i 's/'$const'/'$1'/g' POSCAR
+        /opt/mpich2/intel/11.1/bin/mpiexec  -n $NSLOTS  -machinefile $TMPDIR/machines -port $port ./vasp-5.2.12-fftw-mkl
+        rm EIGENVAL
+        rm PROCAR
+        rm vasprun.xml
+        rm XDATCAR
+        finish=0
+        grep "Voluntary context switches" OUTCAR && finish=1 # test if the OUTCAR is normally ended..
+        Iter=$(grep Iter OUTCAR | tail -1 | awk '{ print $3}')
+        a=$(grep trial OUTCAR | tail -1 | awk '{ print $NF}')
+        POTIM=`awk 'BEGIN{printf("%0.4f", '$a' *0.5 )}'`
+        cp OUTCAR OUTCAR0c_$1
+        cp POSCAR POSCAR0c_$1
+        sed -i 's/NSW    =200/NSW    =80/g' INCAR
+        echo 'POTIM ='$POTIM >> INCAR
+        if [ $Iter == '200(' -o $finish -eq 0 ];
+          then
+            cp CONTCAR POSCAR
+            /opt/mpich2/intel/11.1/bin/mpiexec  -n $NSLOTS  -machinefile $TMPDIR/machines -port $port ./vasp-5.2.12-fftw-mkl
+        fi
+        Energy=$(grep TOTEN OUTCAR | tail -1 | awk '{ print $5}')
+        echo $1 $Energy >> $jobname
+        mv OUTCAR OUTCARc_$1
+        mv CONTCAR CONTCARc_$1
+        rm EIGENVAL
+        rm PROCAR
+        rm vasprun.xml
+        rm XDATCAR
+        ((n++))
+}
+
+for cc in $c $c1
+do
+cat << ! > INCAR
+SYSTEM = $jobname 
+NWRITE = 2
+PREC   = Accurate
+ADDGRID = .TRUE.
+ENCUT  = 500
+EDIFF  = 1e-07
+ISMEAR = 0
+SIGMA  = 0.05
+LREAL= A
+LASPH = .TRUE. # take non-spherical part contribute to gradient inside PAW region into account
+NSW    =200 #steps
+NPAR = 4
+LPLANE = .TRUE.
+LSCALU = .FALSE.
+IBRION = 2 #relax all
+EDIFFG = -0.005
+ISIF   = 2 # do not change volume and shape of cell, but relax atoms.
+LORBIT = 11
+ISPIN =2
+MAGMOM= 8*0 4 -4 -4 4 -4 4 4 -4 24*0
+LMAXMIX = 6
+VOSKOWN = 1 
+LDAU = .TRUE.
+LDAUTYPE = 2  # FLL
+LDAUL = -1   2  -1
+LDAUU =  0  3.0  0
+LDAUJ =  0  1.0  0
+
+!
+cat << ! > POSCAR
+BFO                   #system name
+        3.849 #c-afm
+        2.000000000000      0.000000000000       0.0000000000000
+        0.00000000000        2.000000000000       0.0000000000000
+        0.0000000000000      0.0000000000000      $cc
+Bi Fe O
+8 8 24
+Direct
+ 0.25000000 0.25000000 0.25000000
+ 0.25000000 0.25000000 0.75000000
+ 0.25000000 0.75000000 0.25000000
+ 0.25000000 0.75000000 0.75000000
+ 0.75000000 0.25000000 0.25000000
+ 0.75000000 0.25000000 0.75000000
+ 0.75000000 0.75000000 0.25000000
+ 0.75000000 0.75000000 0.75000000
+ 0.00000000 0.00000000 0.00000000
+ 0.00000000 0.00000000 0.50000000
+ 0.00000000 0.50000000 0.00000000
+ 0.00000000 0.50000000 0.50000000
+ 0.50000000 0.00000000 0.00000000
+ 0.50000000 0.00000000 0.50000000
+ 0.50000000 0.50000000 0.00000000
+ 0.50000000 0.50000000 0.50000000
+ 0.00000000 0.00000000 0.25000000
+ 0.00000000 0.00000000 0.75000000
+ 0.00000000 0.50000000 0.25000000
+ 0.00000000 0.50000000 0.75000000
+ 0.02499999 0.74999999 0.00000000
+ 0.02499999 0.74999999 0.50000000
+ 0.25000000 0.47500002 0.00000000
+ 0.25000000 0.47500002 0.50000000
+ 0.25000002 0.02499999 0.00000000
+ 0.25000002 0.02499999 0.50000000
+ 0.47500002 0.75000000 0.00000000
+ 0.47500002 0.75000000 0.50000000
+ 0.50000000 0.00000000 0.25000000
+ 0.50000000 0.00000000 0.75000000
+ 0.50000000 0.50000000 0.25000000
+ 0.50000000 0.50000000 0.75000000
+ 0.52499999 0.24999999 0.00000000
+ 0.52499999 0.24999999 0.50000000
+ 0.75000000 0.97500002 0.00000000
+ 0.75000000 0.97500002 0.50000000
+ 0.75000002 0.52499999 0.00000000
+ 0.75000002 0.52499999 0.50000000
+ 0.97500002 0.25000000 0.00000000
+ 0.97500002 0.25000000 0.50000000
+!
+/opt/mpich2/intel/11.1/bin/mpiexec  -n $NSLOTS  -machinefile $TMPDIR/machines -port $port ./vasp-5.2.12-fftw-mkl
+rm EIGENVAL
+rm PROCAR
+rm vasprun.xml
+rm XDATCAR
+finish=0
+grep "Voluntary context switches" OUTCAR && finish=1 # test if the OUTCAR is normally ended..
+Iter=$(grep Iter OUTCAR | tail -1 | awk '{ print $3}')
+a=$(grep trial OUTCAR | tail -1 | awk '{ print $NF}')
+POTIM=`awk 'BEGIN{printf("%0.4f", '$a' *0.5 )}'`
+cp OUTCAR OUTCAR0c_$cc
+cp POSCAR POSCAR0c_$cc
+cp CONTCAR POSCAR
+cp INCAR INCAR0
+cat << ! > INCAR
+SYSTEM = $jobname
+NWRITE = 2
+PREC   = Accurate
+ADDGRID = .TRUE.
+ENCUT  = 500
+EDIFF  = 1e-07
+ISMEAR = 0
+SIGMA  = 0.05
+LREAL= A
+LASPH = .TRUE. # take non-spherical part contribute to gradient inside PAW region into account
+NSW    =80 #steps
+NPAR = 4
+LPLANE = .TRUE.
+LSCALU = .FALSE.
+IBRION = 1 #relax all
+EDIFFG = -0.005
+ISIF   = 2 # do not change volume and shape of cell, but relax atoms.
+LORBIT = 11
+ISPIN =2
+MAGMOM= 8*0 4 -4 -4 4 -4 4 4 -4 24*0
+LMAXMIX = 6
+VOSKOWN = 1
+LDAU = .TRUE.
+LDAUTYPE = 2  # FLL
+LDAUL = -1   2  -1
+LDAUU =  0  3.0  0
+LDAUJ =  0  1.0  0
+!
+echo 'POTIM ='$POTIM >> INCAR
+if [ $Iter == '200(' -o $finish -eq 0 ];
+  then
+    /opt/mpich2/intel/11.1/bin/mpiexec  -n $NSLOTS  -machinefile $TMPDIR/machines -port $port ./vasp-5.2.12-fftw-mkl
+fi
+Energy=$(grep TOTEN OUTCAR | tail -1 | awk '{ print $5}')
+echo $cc $Energy >> $jobname
+mv OUTCAR OUTCARc_$cc
+mv CONTCAR CONTCARc_$cc
+rm EIGENVAL
+rm PROCAR
+#rm WAVE*
+rm vasprun.xml
+rm XDATCAR
+done
+
+E=$(grep TOTEN OUTCARc_$c | tail -1 | awk '{ print $5}')
+E1=$(grep TOTEN OUTCARc_$c1 | tail -1 | awk '{ print $5}')
+if [ "$E" == "" ]; then
+   calcu=0
+   exit
+else
+   calcu=1
+fi
+echo E=$E > log
+echo E1=$E1 >> log
+echo calcu=$calcu >> log
+echo 'ICHARG = 1' >> INCAR0
+
+while [ $calcu -eq 1 ]
+do
+  echo n=$n >> log
+  cp INCAR0 INCAR
+  p=`awk 'BEGIN{ printf ("%0.4f", ('$E1' '-' '$E')/('$c1' '-' '$c') )}'` 
+  pp=`awk 'BEGIN{ printf ("%0.4f", '$p' '*' '$p0' )}'`
+  echo p=$p >> log
+  echo pp=$pp >> log
+  if [ $(echo "$pp < 0 "|bc) -eq 1 ]
+    then
+      if [ $n -ge 5 ]; then
+        calcu=0
+      else 
+        step=`awk 'BEGIN{ printf ("%0.4f", '$step' '/' '$n' )}'`
+        c1=`awk 'BEGIN{ printf ("%0.4f", '$c' '+' '$step' )}'`
+	echo c1=$c1 >> log
+	text1 $c1
+	E1=$Energy
+      fi
+  else
+    if [ $(echo "$p >= 0"|bc) -eq 1 ]
+     then
+       p0=$p
+       c1=$c
+       c=`awk 'BEGIN{ printf ("%0.4f", '$c1' '-' '$step' )}'`
+       E1=$E
+       text1 $c
+	E=$Energy
+     elif [ $(echo "$p < 0"|bc) -eq 1 ]
+      then
+	p0=$p
+	c=$c1
+	c1=`awk 'BEGIN{ printf ("%0.4f", '$c' '+' '$step' )}'`
+	E=$E1
+	echo cc=$const >> log
+	text1 $c1
+	E1=$Energy
+      fi
+   fi
+done
+python getdatfit.py $jobname
+cf=$(grep 'c=' lowest.dat | awk '{print $2}') 
+# see if cf is very close to c or c1, if not, then do a seperate run on cf
+cdiff1=`awk 'BEGIN{ printf ("%0.4f", '$cf'-'$c' )}'`  
+cdiff2=`awk 'BEGIN{ printf ("%0.4f", '$c1'-'$cf' )}'`
+if [ $(echo "$cdiff1 < 0.01"|bc) -ne 1 -o $(echo "$cdiff2 < 0.01"|bc) -ne 1 ]
+then
+cp INCAR0 INCAR
+text1 $cf
+fi
+
+rm job* *pdf *png
+rm WAVE*
+rm CHG*
+rm vasp*
+rm POTCAR
+rm DOSCAR
+rm PROCAR
+rm OSZICAR
+rm XDATCAR
+  

@@ -1,0 +1,12 @@
+This bunch of python codes will unfold the VASP bands in to a primitive cell.
+
+TO USE:
+set input ions, orbitals, cells etc in unfold_in.py
+python unfold_in.py to get the K list that will put in VASP to calculate
+
+run QE
+
+keep atomproj.xml
+
+python wf_map.py
+python unfold_main.py 

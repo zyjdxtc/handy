@@ -1,0 +1,10 @@
+cp /home/public/VASP/udo/potentials/potpaw/La/POTCAR.Z ./
+gunzip *.Z
+mv POTCAR La
+cp /home/public/VASP/udo/potentials/potpaw/Mn_pv/POTCAR.Z ./
+gunzip *.Z
+mv POTCAR Mn
+cp /home/public/VASP/udo/potentials/potpaw/O/POTCAR.Z ./
+gunzip *.Z
+mv POTCAR O
+cat La Mn O > POTCAR

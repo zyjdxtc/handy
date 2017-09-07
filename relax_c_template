@@ -1,0 +1,171 @@
+#!/bin/bash
+#set -x
+########################################################################
+# SUN Grid Engine job wrapper
+# parallel job on opteron queue
+########################################################################
+#$ -N c=3.97
+#$ -pe mpi2 16
+#$ -q wp32m4
+#$ -j y
+#$ -M yjzhou@physics.rutgers.edu
+#$ -m e
+#$ -v LD_LIBRARY_PATH,OMP_NUM_THREADS  
+########################################################################
+# do NOT remove the following line!
+source $TMPDIR/sge_init.sh
+########################################################################
+source ~/.bashrc
+
+cat << ! > KPOINTS
+a
+0
+M
+4 4 1 
+0.0 0.0 0.0
+!
+#--------------------------------------
+cat << ! > INCAR 
+SYSTEM = lmosmo
+NWRITE = 2
+PREC   = Accurate
+ADDGRID = .TRUE.
+ENCUT  = 500
+EDIFF  = 1E-07
+ISMEAR = 0
+SIGMA  = 0.05
+LREAL= A
+LASPH = .TRUE. # take non-spherical part contribute to gradient inside PAW region into account
+NSW    = 200 #steps
+
+NPAR = 4
+LPLANE = .TRUE.
+LSCALU = .FALSE.
+
+IBRION = 2 #relax all
+EDIFFG = -0.005
+ISIF   = 2 # do not change volume and shape of cell, but relax atoms.
+
+
+LORBIT = 11
+
+
+!
+cat << ! > POSCAR
+PTO                    #system name
+        3.849 
+        1.0000000000000       -1.0000000000000       0.0000000000000
+        1.000000000000        1.0000000000000       0.0000000000000
+        0.0000000000000      0.0000000000000      3.97
+Pb Sr Ti O
+4 4 8 24
+Direct
+ 0.00000000 0.50000000 0.14351089
+ 0.00000000 0.50000000 0.39351089
+ 0.50000000 0.00000000 0.14351089
+ 0.50000000 0.00000000 0.39351089
+ 0.00136776 0.50000000 0.87500000
+ 0.49863224 0.00000000 0.87500000
+ 0.50136776 -0.00000000 0.62500000
+ 0.99863224 0.50000000 0.62500000
+ 0.00000000 0.00000000 0.0 
+ 0.00000000 0.00000000 0.25939374
+ 0.50000000 0.50000000 0. 
+ 0.50000000 0.50000000 0.25939374
+ 0.00000000 0.00000000 0.50000000
+ 0.00000000 0.00000000 0.75000000
+ 0.50000000 0.50000000 0.50000000
+ 0.50000000 0.50000000 0.75000000 
+0.00000000 0.00000000 0.12124158
+ 0.00000000 0.00000000 0.37124158
+ 0.25000000 0.25000000 0.24292689
+ 0.25000000 0.25000000 0. 
+ 0.25000000 0.75000000 0.24292689
+ 0.25000000 0.75000000 0. 
+ 0.50000000 0.50000000 0.12124158
+ 0.50000000 0.50000000 0.37124158
+ 0.75000000 0.25000000 0.24292689
+ 0.75000000 0.25000000 0. 
+ 0.75000000 0.75000000 0.24292689
+ 0.75000000 0.75000000 0. 
+ 0.03498332 0.00000000 0.62500000
+ 0.25000000 0.25000000 0.75910218
+ 0.25000000 0.25000000 0.5
+ 0.25000000 0.75000000 0.75910218
+ 0.25000000 0.75000000 0.5
+ 0.46501668 0.50000000 0.62500000
+ 0.53498330 0.50000000 0.87500000
+ 0.75000000 0.25000000 0.50 
+ 0.75000000 0.25000000 0.74089782
+ 0.75000000 0.75000000 0.50 
+ 0.75000000 0.75000000 0.74089782
+ 0.96501670 -0.00000000 0.87500000
+!
+
+
+/opt/mpich2/intel/11.1/bin/mpiexec  -n $NSLOTS  -machinefile $TMPDIR/machines -port $port ./vasp-5.2.12-fftw-mkl
+
+#tar czvf CHG.tgz CHG*
+#rm CHG*
+rm EIGENVAL
+#rm WAVECAR
+rm PROCAR
+#rm OSZICAR
+rm vasprun.xml
+rm XDATCAR
+
+finish=0
+grep 'Voluntary context switches' OUTCAR && finish=1 # test if the OUTCAR is normally ended..
+Iter=$(grep Iter OUTCAR | tail -1 | awk '{ print $3}')
+a=$(grep trial OUTCAR | tail -1 | awk '{ print $NF}')
+POTIM=`awk 'BEGIN{printf("%0.4f", '$a' *0.5 )}'`
+cp OUTCAR OUTCAR0
+cp POSCAR POSCAR0
+cp CONTCAR POSCAR
+cp INCAR INCAR0
+
+cat << ! > INCAR
+SYSTEM = lmosmo
+NWRITE = 2
+PREC   = Accurate
+ADDGRID = .TRUE.
+ENCUT  = 500
+EDIFF  = 1E-07
+ISMEAR = 0
+SIGMA  = 0.05
+LREAL= A
+LASPH = .TRUE. # take non-spherical part contribute to gradient inside PAW region into account
+NSW    = 80 #steps
+
+NPAR = 4
+LPLANE = .TRUE.
+LSCALU = .FALSE.
+
+IBRION = 1 #relax all
+EDIFFG = -0.005
+ISIF   = 2 # do not change volume and shape of cell, but relax atoms.
+ICHARG = 1
+ISTART = 1
+LORBIT = 11
+!
+
+echo 'POTIM ='$POTIM >> INCAR
+if [ $Iter == '200(' -o $finish -eq 0 ]; 
+  then
+    /opt/mpich2/intel/11.1/bin/mpiexec  -n $NSLOTS  -machinefile $TMPDIR/machines -port $port ./vasp-5.2.12-fftw-mkl
+fi
+
+
+
+#tar czvf CHG.tgz CHG*
+rm CHG*
+rm EIGENVAL
+rm WAVECAR
+rm PROCAR
+#rm OSZICAR
+rm vasprun.xml
+rm XDATCAR
+rm POTCAR
+rm *.png
+rm ./vasp-5.2.12-fftw-mkl
+
